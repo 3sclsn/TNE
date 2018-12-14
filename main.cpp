@@ -8,8 +8,8 @@
 //Defineer de variabelen
 rgb_lcd lcd;
 int counts;                                                                     //variabele voor het aantal tellen (unsigned omdat geen negatieve getallen moeten opgeslagen worden)
-double cpm;                                                             //variabele voor het aantal tellen per minuut (unsigned long omdat geen negatieve getallen moeten opgeslagen)                                              //variable for calculation CPM in this sketch (int???) (is deze nodig???)
-unsigned long previousMillis = 0;                                         //variable for time measurement (unsigned long omdat geen negatieve getallen moeten opgeslagen)
+double cpm;                                                                     //variabele voor het aantal tellen per minuut (unsigned long omdat geen negatieve getallen moeten opgeslagen)                                              //variable for calculation CPM in this sketch (int???) (is deze nodig???)
+unsigned long previousMillis = 0;                                               //variable for time measurement (unsigned long omdat geen negatieve getallen moeten opgeslagen)
 unsigned long currentMillis;
 unsigned long startMillis;
 boolean eerstUit = 1;
@@ -19,7 +19,17 @@ int presetTijd_min;
 int presetTijd_s;
 int meetTijd_ms;
 int meetTijd_s;
-long meetTijd_min;
+//long meetTijd_min;
+int vorigeMeetTijd_s;
+
+
+//Aansluiting digitale io
+const byte ledPin = 6;                                                          //digitale pin 6 als uitgang voor led
+const byte schuifSchakelaar = 8;                                                //digitale pin 8 als ingang van de schuifschakelaar
+const byte GMTube = 2;                                                          //digitale pin 2 als ingang GM-buis
+
+//Aansluiting analoge INPUT
+const byte potentiometer = 0;                                                   //analoge pin 0 als ingang potentiometer
 
 //Instellen kleur lcd-scherm
 const int lcdRood = 100;
@@ -29,7 +39,7 @@ const int lcdBlauw = 100;
 //Telkens een puls wordt gedetecteerd, moet het aantal counts met 1 verhogen
 void tube_impulse(){
   startKnop = digitalRead(8);
-  if(startKnop ==1){
+  if(startKnop ==1 ){
   counts++;
   }
 }
@@ -41,10 +51,9 @@ void setup(){
   counts = 0;
   cpm = 0;
   Serial.begin(9600);                                                           //start serial monitor
-  pinMode(2, INPUT);                                                            //digitale pin 2 als ingang GM-buis
-  pinMode(8, INPUT);                                                            //digitale pin 8 als ingang van de schuifschakelaar
-  pinMode(7, INPUT);                                                            //digitale pin 7 als ingang van de drukknop
-  pinMode(6, OUTPUT);                                                           //digitale pin 6 als uitgang voor led
+  pinMode(GMTube, INPUT);                                                       //digitale pin 2 als ingang GM-buis
+  pinMode(schuifSchakelaar, INPUT);                                             //digitale pin 8 als ingang van de schuifschakelaar
+  pinMode(ledPin, OUTPUT);                                                      //digitale pin 6 als uitgang voor led
   //digitalWrite(2, LOW);       //testen of dit wel nodig is
   //digitalWrite(8, LOW);
   //digitalWrite(7, LOW);
@@ -52,8 +61,8 @@ void setup(){
 }
 
 void loop(){
-  attachInterrupt(digitalPinToInterrupt(2), tube_impulse, FALLING);
-  a0 = analogRead(0);                                                           //instellen meettijd adhv potentiometer, van 1 tot 10min of continu (0)
+  //attachInterrupt(digitalPinToInterrupt(GMTube), tube_impulse, FALLING);
+  a0 = analogRead(potentiometer);                                               //instellen meettijd adhv potentiometer, van 1 tot 10min of continu (0)
   presetTijd_min = (1024 - a0)/102,4;
   presetTijd_s = presetTijd_min * 60;
 
@@ -67,30 +76,34 @@ void loop(){
       counts = 0;
       cpm = 0;
       meetTijd_s = 0;
-      meetTijd_min = 0;
+      //meetTijd_min = 0;
       eerstUit = false;
 
       startMillis = millis();
 
       if(presetTijd_min == 0){
-        //attachInterrupt(digitalPinToInterrupt(2), tube_impulse, FALLING);
+        attachInterrupt(digitalPinToInterrupt(GMTube), tube_impulse, FALLING);
         //meetTijd_s = (currentMillis - previousMillis)*1000;
         //meetTijd_min = meetTijd_s/60;
         //cpm = counts/(meetTijd_min);
-        digitalWrite(6, HIGH);                                                  //led brandt als meting loopt
+        digitalWrite(ledPin, HIGH);
+        vorigeMeetTijd_s = meetTijd_s;                                                  //led brandt als meting loopt
         }
 
       else{
         meetTijd_s = (currentMillis - startMillis)/1000;
-        meetTijd_min = meetTijd_s/60;
+        //meetTijd_min = meetTijd_s/60;
 
         if(meetTijd_s < presetTijd_s){
-          //attachInterrupt(digitalPinToInterrupt(2), tube_impulse, FALLING);
-          cpm = counts/(meetTijd_s)*60;
-          digitalWrite(6, HIGH);
+          vorigeMeetTijd_s = meetTijd_s;
+          attachInterrupt(digitalPinToInterrupt(GMTube), tube_impulse, FALLING);
+          cpm = 60*counts/(vorigeMeetTijd_s);
+          digitalWrite(ledPin, HIGH);
+
           }
-        else{                                                                   //led brandt als meting loopt
-          digitalWrite(6, LOW);
+        else{
+          digitalWrite(ledPin, LOW);                                             //led doofft als meting gedaan is
+          detachInterrupt(digitalPinToInterrupt(2));
           }
       }
     }
@@ -98,22 +111,25 @@ void loop(){
     else{
       currentMillis = millis();
       meetTijd_s = (currentMillis-startMillis)/1000;
-      meetTijd_min = meetTijd_s/60;
+      //meetTijd_min = meetTijd_s/60;
 
       if(presetTijd_min == 0) {
-        //attachInterrupt(digitalPinToInterrupt(2), tube_impulse, FALLING);
-        cpm = counts/(meetTijd_s*60);
-        digitalWrite(6, HIGH);
+        vorigeMeetTijd_s = meetTijd_s;
+        attachInterrupt(digitalPinToInterrupt(GMTube), tube_impulse, FALLING);
+        cpm = 60*counts/(vorigeMeetTijd_s);
+        digitalWrite(ledPin, HIGH);
         }
 
       else{
         if(meetTijd_s < presetTijd_s){
-          //attachInterrupt(digitalPinToInterrupt(2), tube_impulse, FALLING);
-          cpm = counts/meetTijd_min;
-          digitalWrite(6, HIGH);
+          vorigeMeetTijd_s = meetTijd_s;
+          attachInterrupt(digitalPinToInterrupt(GMTube), tube_impulse, FALLING);
+          cpm = 60*counts/(vorigeMeetTijd_s);
+          digitalWrite(ledPin, HIGH);
         }
         else{
-          digitalWrite(6, LOW);
+          digitalWrite(ledPin, LOW);
+          detachInterrupt(digitalPinToInterrupt(GMTube));
         }
       }
     }
@@ -121,6 +137,7 @@ void loop(){
 
   if(startKnop == LOW){
     digitalWrite(6, LOW);
+    detachInterrupt(digitalPinToInterrupt(GMTube));
     eerstUit = true;
     }
 
@@ -133,7 +150,7 @@ void loop(){
   lcd.setCursor(9, 1);
   lcd.print(counts);
   lcd.setCursor(0, 0);
-  lcd.print(meetTijd_s);
+  lcd.print(vorigeMeetTijd_s);
   lcd.print("s");
 
   if(presetTijd_min != 0){
